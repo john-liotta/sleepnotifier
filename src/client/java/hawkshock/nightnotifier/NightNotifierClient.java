@@ -232,11 +232,18 @@ public class NightNotifierClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		LOG.info("[Night Notifier] Client init");
-		ClientDisplayConfig.load();
+		// Ensure CONFIG is initialized immediately so we don't access null later
+		CONFIG = ClientDisplayConfig.load();
+		lastConfigTimestamp = getConfigFileTimestamp();
+
 		OverlayMessagePayload.registerTypeSafely();
 
 		ClientPlayNetworking.registerGlobalReceiver(OverlayMessagePayload.ID, (payload, context) ->
-				context.client().execute(() -> OverlayMessage.set(payload.message(), payload.duration(), payload.eventType()))
+				context.client().execute(() -> {
+					LOG.info("[Night Notifier] Received overlay payload: type={}, duration={}, msg={}",
+							payload.eventType(), payload.duration(), payload.message());
+					OverlayMessage.set(payload.message(), payload.duration(), payload.eventType());
+				})
 		);
 
 		HudRenderCallback.EVENT.register((drawContext, tickDelta) -> {
