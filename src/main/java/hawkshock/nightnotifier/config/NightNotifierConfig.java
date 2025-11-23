@@ -12,9 +12,7 @@ import java.nio.file.Paths;
 
 /**
  * Server configuration for Night Notifier.
- * Includes:
- *  - Dimension toggles (enableNetherNotifications, enableEndNotifications)
- *  - Phantom scream volumes (floats; client may present percentage sliders)
+ * Extended with configurable rest threshold and multi-offender listing.
  */
 public final class NightNotifierConfig {
 
@@ -22,27 +20,26 @@ public final class NightNotifierConfig {
     public boolean sendSubtitle = true;
     public boolean sendActionBar = false;
 
-    // Do NOT show vanilla title/subtitle/action bar to clients that have the overlay capability.
     public boolean sendVanillaToModdedClients = false;
 
-    // Overlay duration (ticks) for modded clients; if <=0 client falls back to its own default.
     public int overlayDuration = 100;
 
-    // Phantom sound settings (server). Used for unmodded clients; modded clients use their own client config.
     public boolean enablePhantomScreams = true;
-    public float nightScreamVolume = 1.0f;   // 1.0f == 100%
-    public float morningScreamVolume = 2.0f; // 2.0f == 200%
+    public float nightScreamVolume = 1.0f;
+    public float morningScreamVolume = 2.0f;
 
-    // How many ticks before NIGHT_END the morning warning should trigger (default 1200 = 1 minute).
     public int morningWarningLeadTicks = 1200;
 
-    // Dimension toggles (default false): generate notifications in Nether / End?
     public boolean enableNetherNotifications = false;
     public boolean enableEndNotifications = false;
 
     public int titleFadeIn = 10;
     public int titleStay = 60;
     public int titleFadeOut = 10;
+
+    // New: configurable rest threshold (default 56000 ticks ~= 2.33 days) and multi-offender list sizing.
+    public int restThresholdTicks = 56000;
+    public int maxOffenderNames = 5; // how many additional offenders to list after top player (excluding the top)
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = Paths.get("config", "nightnotifier.json");

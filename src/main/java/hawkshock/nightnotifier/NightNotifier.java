@@ -22,15 +22,14 @@ import net.minecraft.world.World;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Restored original SleepNotifier-style logic:
- *  - Trigger exactly at night start and at (NIGHT_END - morningWarningLeadTicks)
- *  - Choose the player with the highest TIME_SINCE_REST above threshold (56000 ticks)
- *  - Broadcast overlay (and optional vanilla title/subtitle/action bar) with nights count
- *  - Phantom screams only on NIGHT_START / SUNRISE_IMMINENT for unmodded clients
+ * Original flow restored:
+ *  - Trigger once at night start and once lead-ticks before sunrise.
+ *  - Multi-offender listing added (configurable).
+ *  - Phantom screams only for NIGHT_START / SUNRISE_IMMINENT for unmodded clients.
  */
 public class NightNotifier implements ModInitializer {
     public static final String MOD_ID = "nightnotifier";
@@ -41,13 +40,10 @@ public class NightNotifier implements ModInitializer {
     private final Map<RegistryKey<World>, Boolean> priorCanSleep = new HashMap<>();
     private final Map<RegistryKey<World>, Boolean> sunriseWarned = new HashMap<>();
 
-    // Original constants (unchanged)
-    private static final int REST_THRESHOLD_TICKS = 56000;
     private static final int TICKS_PER_DAY = 24000;
     private static final long NIGHT_START = 12541L;
     private static final long NIGHT_END   = 23458L;
 
-    // Phantom sounds (server fallback for unmodded clients)
     private SoundEvent phantomScream;
     private SoundEvent phantomFallbackNight;
     private SoundEvent phantomFallbackWarn;
@@ -78,7 +74,7 @@ public class NightNotifier implements ModInitializer {
     }
 
     private void onWorldTick(ServerWorld world) {
-        // Original behavior: only Overworld considered.
+        // Only Overworld (match original)
         if (!world.getRegistryKey().equals(World.OVERWORLD)) return;
 
         long dayTime = world.getTimeOfDay() % 24000L;
@@ -91,23 +87,20 @@ public class NightNotifier implements ModInitializer {
         int lead = Math.max(0, cfg.morningWarningLeadTicks);
         long warningStartTick = Math.max(NIGHT_START, NIGHT_END - lead);
 
-        // Night start transition
         if (canSleepNow && !previous) {
             sendNightStart(world);
             sunriseWarned.put(world.getRegistryKey(), false);
         }
 
-        // Sunrise lead warning (only once)
         if (naturalNight && !thundering && canSleepNow
                 && lead > 0
                 && dayTime >= warningStartTick && dayTime < NIGHT_END
                 && !sunriseWarned.getOrDefault(world.getRegistryKey(), false)) {
 
             boolean success = sendSunriseLead(world);
-            sunriseWarned.put(world.getRegistryKey(), true); // suppress repeats
+            sunriseWarned.put(world.getRegistryKey(), true);
         }
 
-        // Reset flags when day arrives
         if (!canSleepNow && previous) {
             sunriseWarned.remove(world.getRegistryKey());
         }
@@ -116,52 +109,69 @@ public class NightNotifier implements ModInitializer {
     }
 
     private void sendNightStart(ServerWorld world) {
-        ServerPlayerEntity triggering = findTriggering(world);
-        if (triggering == null) {
-            LOGGER.info("Night start: no players met rest threshold (>= {}).", REST_THRESHOLD_TICKS);
+        List<ServerPlayerEntity> offenders = collectOffenders(world);
+        if (offenders.isEmpty()) {
+            LOGGER.info("Night start: no players met rest threshold (>= {}).", CONFIG.restThresholdTicks);
             return;
         }
-        int ticks = triggering.getStatHandler().getStat(Stats.CUSTOM.getOrCreateStat(Stats.TIME_SINCE_REST));
-        int nights = ticks / TICKS_PER_DAY;
-        String nightsText = nights == 1 ? "1 night" : nights + " nights";
-        broadcast(world, "Nightfall", triggering.getName().getString(), nightsText, "NIGHT_START");
+        broadcast(world, "Nightfall", offenders, "NIGHT_START");
     }
 
     private boolean sendSunriseLead(ServerWorld world) {
-        ServerPlayerEntity triggering = findTriggering(world);
-        if (triggering == null) {
-            LOGGER.info("Morning warning skipped: no players meet rest threshold (>= {}).", REST_THRESHOLD_TICKS);
+        List<ServerPlayerEntity> offenders = collectOffenders(world);
+        if (offenders.isEmpty()) {
+            LOGGER.info("Morning warning skipped: no players meet rest threshold (>= {}).", CONFIG.restThresholdTicks);
             return false;
         }
-        int ticks = triggering.getStatHandler().getStat(Stats.CUSTOM.getOrCreateStat(Stats.TIME_SINCE_REST));
-        int nights = ticks / TICKS_PER_DAY;
-        String nightsText = nights == 1 ? "1 night" : nights + " nights";
-        broadcast(world, "1 Minute Until Sunrise", triggering.getName().getString(), nightsText, "SUNRISE_IMMINENT");
+        broadcast(world, "1 Minute Until Sunrise", offenders, "SUNRISE_IMMINENT");
         return true;
     }
 
-    private ServerPlayerEntity findTriggering(ServerWorld world) {
-        ServerPlayerEntity best = null;
-        int max = -1;
+    private List<ServerPlayerEntity> collectOffenders(ServerWorld world) {
+        int threshold = CONFIG.restThresholdTicks;
+        List<ServerPlayerEntity> offenders = new ArrayList<>();
         for (ServerPlayerEntity p : world.getPlayers()) {
             int tsr = p.getStatHandler().getStat(Stats.CUSTOM.getOrCreateStat(Stats.TIME_SINCE_REST));
-            if (tsr >= REST_THRESHOLD_TICKS && tsr > max) {
-                max = tsr;
-                best = p;
+            if (tsr >= threshold) {
+                offenders.add(p);
             }
         }
-        return best;
+        // Sort by highest time since rest descending
+        offenders.sort((a, b) -> Integer.compare(
+                b.getStatHandler().getStat(Stats.CUSTOM.getOrCreateStat(Stats.TIME_SINCE_REST)),
+                a.getStatHandler().getStat(Stats.CUSTOM.getOrCreateStat(Stats.TIME_SINCE_REST))
+        ));
+        return offenders;
     }
 
     private void broadcast(ServerWorld world,
                            String eventLabel,
-                           String name,
-                           String nightsText,
+                           List<ServerPlayerEntity> offenders,
                            String eventType) {
-        NightNotifierConfig cfg = ensureConfig();
 
-        final String full = eventLabel + ": " + name + " hasn't slept for " + nightsText + ".";
-        final String detailOnly = name + " hasn't slept for " + nightsText + ".";
+        NightNotifierConfig cfg = ensureConfig();
+        ServerPlayerEntity top = offenders.get(0);
+
+        int topTicks = top.getStatHandler().getStat(Stats.CUSTOM.getOrCreateStat(Stats.TIME_SINCE_REST));
+        int topNights = topTicks / TICKS_PER_DAY;
+        String topNightsText = topNights == 1 ? "1 night" : topNights + " nights";
+        String topName = top.getName().getString();
+
+        // Additional offenders list
+        List<String> extraNames = offenders.stream().skip(1).limit(Math.max(0, cfg.maxOffenderNames))
+                .map(p -> {
+                    int t = p.getStatHandler().getStat(Stats.CUSTOM.getOrCreateStat(Stats.TIME_SINCE_REST));
+                    int n = t / TICKS_PER_DAY;
+                    return p.getName().getString() + "(" + n + "n)";
+                })
+                .collect(Collectors.toList());
+
+        int remaining = Math.max(0, offenders.size() - 1 - extraNames.size());
+
+        String extrasPart = extraNames.isEmpty() ? "" :
+                " Others: " + String.join(", ", extraNames) + (remaining > 0 ? " +" + remaining : "");
+
+        String full = eventLabel + ": " + topName + " hasn't slept for " + topNightsText + "." + extrasPart;
 
         boolean enableTitle = cfg.sendTitle;
         boolean enableSubtitle = cfg.sendSubtitle;
@@ -169,7 +179,7 @@ public class NightNotifier implements ModInitializer {
         boolean sendVanillaToModded = cfg.sendVanillaToModdedClients;
 
         Text titleTextSplit = Text.literal(eventLabel);
-        Text subtitleTextSplit = Text.literal(detailOnly);
+        Text subtitleTextSplit = Text.literal(topName + " hasn't slept for " + topNightsText + ".");
         Text combinedFull = Text.literal(full);
         Text actionBarEvent = Text.literal(eventLabel);
         Text actionBarFull = Text.literal(full);
@@ -192,7 +202,6 @@ public class NightNotifier implements ModInitializer {
         for (ServerPlayerEntity player : world.getPlayers()) {
             boolean modded = ServerPlayNetworking.canSend(player, OverlayMessagePayload.ID);
 
-            // Play server-side sound for unmodded clients only (modded clients handle client-side sound)
             if (!modded && chosen != null && serverVolume > 0f) {
                 world.playSound(
                         null,
@@ -205,9 +214,8 @@ public class NightNotifier implements ModInitializer {
             }
 
             if (modded) {
-                String overlayMsg = eventLabel + ": " + name + " hasn't slept for " + nightsText + ".";
                 int dur = cfg.overlayDuration > 0 ? cfg.overlayDuration : 100;
-                ServerPlayNetworking.send(player, new OverlayMessagePayload(overlayMsg, dur, eventType));
+                ServerPlayNetworking.send(player, new OverlayMessagePayload(full, dur, eventType));
                 if (!sendVanillaToModded) continue;
             }
 
