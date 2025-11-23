@@ -14,7 +14,7 @@ public final class ClothConfigFactory {
     private ClothConfigFactory() {}
 
     private enum Anchor { TOP_LEFT, TOP_CENTER, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT }
-    private enum Align  { LEFT, CENTER, RIGHT }
+    // Text alignment removed from UI; alignment is now internal-left only.
 
     public static boolean isClothPresent() {
         FabricLoader loader = FabricLoader.getInstance();
@@ -40,6 +40,8 @@ public final class ClothConfigFactory {
                 .setParentScreen(parent)
                 .setTitle(Text.literal("NightNotifier"))
                 .setSavingRunnable(() -> {
+                    // force left alignment internally
+                    cfg.textAlign = "LEFT";
                     ClientDisplayConfig.save(cfg);
                     NightNotifierClient.applyClientConfig(cfg);
                 });
@@ -94,12 +96,6 @@ public final class ClothConfigFactory {
                 .setDefaultValue(80)
                 .setTooltip(Text.literal("Vertical offset from anchor"))
                 .setSaveConsumer(v -> apply(cfg, c -> c.offsetY = v))
-                .build());
-
-        overlay.addEntry(eb.startEnumSelector(Text.literal("Text Alignment"), Align.class, toAlign(cfg.textAlign))
-                .setDefaultValue(Align.CENTER)
-                .setTooltip(Text.literal("Text alignment inside the overlay box"))
-                .setSaveConsumer(a -> apply(cfg, c -> c.textAlign = a.name()))
                 .build());
 
         int scalePercent = clampInt(Math.round(cfg.textScale * 100f), 25, 250);
@@ -200,9 +196,6 @@ public final class ClothConfigFactory {
 
     private static Anchor toAnchor(String s) {
         try { return Anchor.valueOf(sanitize(s)); } catch (Exception e) { return Anchor.TOP_CENTER; }
-    }
-    private static Align toAlign(String s) {
-        try { return Align.valueOf(sanitize(s)); } catch (Exception e) { return Align.CENTER; }
     }
     private static String sanitize(String v) { return v == null ? "" : v.trim().toUpperCase(); }
 }

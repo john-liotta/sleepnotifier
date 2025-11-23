@@ -1,7 +1,7 @@
 package hawkshock.nightnotifier.client.ui;
 
-import hawkshock.nightnotifier.client.ClientHandshake;
 import hawkshock.shared.config.ClientDisplayConfig;
+import hawkshock.nightnotifier.client.ClientHandshake;
 import hawkshock.nightnotifier.client.sound.SoundManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -55,16 +55,12 @@ public final class OverlayManager {
             return;
         }
         styled = cfg.useClientStyle;
-        if (styled) {
-            color = parseColor(cfg.colorHex);
-            float ts = cfg.textScale;
-            if (ts < 0.5f) ts = 0.5f;
-            if (ts > 2.5f) ts = 2.5f;
-            scale = ts;
-        } else {
-            color = 0xFFFFFFFF;
-            scale = 1.0f;
-        }
+        // Keep a simple, clamped scale here for backward compatibility
+        float ts = cfg.textScale;
+        if (ts < 0.5f) ts = 0.5f;
+        if (ts > 2.5f) ts = 2.5f;
+        scale = ts;
+        color = parseColor(cfg.colorHex);
     }
 
     public static void tick() {
@@ -78,17 +74,25 @@ public final class OverlayManager {
         TextRenderer tr = client.textRenderer;
         if (tr == null) return;
 
+        // Read the live client config so anchor/offset/scale changes take effect immediately
+        ClientDisplayConfig cfg = ClientDisplayConfig.load();
+
         int sw = client.getWindow().getScaledWidth();
         int sh = client.getWindow().getScaledHeight();
         int tw = tr.getWidth(message);
         int th = tr.fontHeight;
 
-        int boxW = (int)(tw * scale);
-        int boxH = (int)(th * scale);
+        // Use config scale (clamped)
+        float cfgScale = cfg.textScale;
+        if (cfgScale < 0.5f) cfgScale = 0.5f;
+        if (cfgScale > 2.5f) cfgScale = 2.5f;
+
+        int boxW = (int) (tw * cfgScale);
+        int boxH = (int) (th * cfgScale);
 
         int anchorX;
         int anchorY;
-        String anchor = "TOP_CENTER"; // position is applied via cfg during applyCurrentStyle; keep a safe default here
+        String anchor = cfg.anchor == null ? "TOP_CENTER" : cfg.anchor.trim().toUpperCase();
         switch (anchor) {
             case "TOP_LEFT" -> { anchorX = 0; anchorY = 0; }
             case "TOP_RIGHT" -> { anchorX = sw - boxW; anchorY = 0; }
@@ -99,16 +103,23 @@ public final class OverlayManager {
             default -> { anchorX = (sw - boxW) / 2; anchorY = 0; }
         }
 
-        int padX = styled ? 6 : 0;
-        int padY = styled ? 4 : 0;
-        int bgColor = styled ? 0x90000000 : 0x00000000;
+        // apply configured offset
+        anchorX += cfg.offsetX;
+        anchorY += cfg.offsetY;
 
-        if (scale != 1.0f && tryScaleDraw(ctx, tr, message, anchorX, anchorY, tw, th, padX, padY, bgColor, color, scale)) return;
+        int padX = cfg.useClientStyle ? 6 : 0;
+        int padY = cfg.useClientStyle ? 4 : 0;
+        int bgColor = cfg.useClientStyle ? 0x90000000 : 0x00000000;
+        int textColor = parseColor(cfg.colorHex);
 
-        if (styled && bgColor != 0) {
+        // Use tryScaleDraw helper to perform matrix scaling and translation if needed
+        if (cfgScale != 1.0f && tryScaleDraw(ctx, tr, message, anchorX, anchorY, tw, th, padX, padY, bgColor, textColor, cfgScale)) return;
+
+        if (cfg.useClientStyle && bgColor != 0) {
             ctx.fill(anchorX - padX, anchorY - padY, anchorX + tw + padX, anchorY + th + padY, bgColor);
         }
-        ctx.drawTextWithShadow(tr, message, anchorX, anchorY, color);
+        // force left alignment internally (textAlign removed from UI)
+        ctx.drawTextWithShadow(tr, message, anchorX, anchorY, textColor);
     }
 
     // Scaled draw helper (reflection-friendly)
@@ -135,7 +146,7 @@ public final class OverlayManager {
             push.invoke(stack);
             translateM.invoke(stack, (float) topLeftX, (float) topLeftY);
             scaleM.invoke(stack, s, s);
-            if (styled && bgColor != 0) {
+            if (bgColor != 0) {
                 ctx.fill(-padX, -padY, unscaledW + padX, unscaledH + padY, bgColor);
             }
             ctx.drawTextWithShadow(tr, msg.asOrderedText(), 0, 0, textColor);
