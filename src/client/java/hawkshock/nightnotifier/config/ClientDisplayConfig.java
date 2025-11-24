@@ -29,7 +29,8 @@ public final class ClientDisplayConfig {
 
     public String colorHex = "#FFFFFF";
     public float textScale = 1.7f; // clamped to [0.5, 2.5]
-    public String textAlign = "CENTER";
+    // Force default alignment to LEFT internally
+    public String textAlign = "LEFT";
 
     // Default duration in ticks. 5s = 100 ticks.
     public int defaultDuration = 100;
