@@ -17,7 +17,7 @@ import java.nio.file.Paths;
  * This is a shared copy used while migrating callers to a single canonical config class.
  */
 public final class ClientDisplayConfig {
-    public int configVersion = 9;
+    public int configVersion = 10;
 
     public boolean enableNotifications = true;
     public boolean useClientStyle = true;
@@ -49,6 +49,23 @@ public final class ClientDisplayConfig {
 
     // New: client preference for showing the progress bar. Client choice trumps server setting.
     public boolean enableProgressBar = true;
+
+    // New: progress bar dimension overrides. -1 = automatic (computed)
+    public int progressBarWidth = -1;
+    public int progressBarHeight = -1;
+
+    // New: Y offset for the progress bar (overrides internal y)
+    public int progressBarYOffset = 8;
+
+    // New: icons toggles
+    public boolean disableSunIcon = false;
+    public boolean disableMoonIcon = false;
+
+    // New: progress bar section colors (hex). Section 0 = client-lead (red), 1 = top fraction, 2 = mid, 3 = low
+    public String progressSectionColor0 = "#FFFF4444"; // within client lead (red)
+    public String progressSectionColor1 = "#FF4A90E2"; // top (medium blue)
+    public String progressSectionColor2 = "#FF003366"; // mid (dark blue)
+    public String progressSectionColor3 = "#FF7FBFFF"; // low (light blue)
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = Paths.get("config", "nightnotifier_client.json");
@@ -84,6 +101,19 @@ public final class ClientDisplayConfig {
                 cfg.enableProgressBar = true;
             }
             cfg.configVersion = 9;
+        }
+        if (cfg.configVersion < 10) {
+            // Introduced progress bar overrides, y-offset, icon toggles and section colors
+            if (!hasField(cfg, "progressBarWidth")) cfg.progressBarWidth = -1;
+            if (!hasField(cfg, "progressBarHeight")) cfg.progressBarHeight = -1;
+            if (!hasField(cfg, "progressBarYOffset")) cfg.progressBarYOffset = 8;
+            if (!hasField(cfg, "disableSunIcon")) cfg.disableSunIcon = false;
+            if (!hasField(cfg, "disableMoonIcon")) cfg.disableMoonIcon = false;
+            if (!hasField(cfg, "progressSectionColor0")) cfg.progressSectionColor0 = "#FFFF4444";
+            if (!hasField(cfg, "progressSectionColor1")) cfg.progressSectionColor1 = "#FF4A90E2";
+            if (!hasField(cfg, "progressSectionColor2")) cfg.progressSectionColor2 = "#FF003366";
+            if (!hasField(cfg, "progressSectionColor3")) cfg.progressSectionColor3 = "#FF7FBFFF";
+            cfg.configVersion = 10;
         }
         save(cfg);
         return cfg;
