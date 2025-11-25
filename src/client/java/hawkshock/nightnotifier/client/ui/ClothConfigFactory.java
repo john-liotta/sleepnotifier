@@ -2,6 +2,7 @@ package hawkshock.nightnotifier.client.ui;
 
 import hawkshock.nightnotifier.config.ClientDisplayConfig;
 import hawkshock.nightnotifier.NightNotifierClient;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 import net.fabricmc.loader.api.FabricLoader;
@@ -128,6 +129,13 @@ public final class ClothConfigFactory {
                 .setTooltip(Text.literal("Base text color (optionally with alpha)"))
                 .setSaveConsumer(v -> apply(cfg, c -> c.colorHex = validateColor(v, c.colorHex)))
                 .build());
+
+        // Add a cloth button that opens the color picker
+        overlay.addEntry(eb.startButton(Text.literal("Pick Color"), () -> {
+            MinecraftClient.getInstance().setScreen(ColorPickerScreen.open(parent, cfg.colorHex, picked -> {
+                apply(cfg, c -> c.colorHex = validateColor(picked, c.colorHex));
+            }));
+        }).build());
 
         ConfigCategory sound = builder.getOrCreateCategory(Text.literal("Phantom Sounds"));
 

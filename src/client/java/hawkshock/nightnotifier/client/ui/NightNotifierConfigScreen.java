@@ -14,9 +14,9 @@ import net.minecraft.text.Text;
 
 public class NightNotifierConfigScreen extends Screen {
 
-	private final Screen parent;
-	private ClientDisplayConfig cfg;
-	private final ClientDisplayConfig defaults = new ClientDisplayConfig();
+	final Screen parent;
+	ClientDisplayConfig cfg;
+	final ClientDisplayConfig defaults = new ClientDisplayConfig();
 
 	private CyclingButtonWidget<Boolean> notificationsToggle;
 	private CyclingButtonWidget<Boolean> styleToggle;
@@ -41,11 +41,11 @@ public class NightNotifierConfigScreen extends Screen {
 	private VolumeSlider nightVolSlider;
 	private VolumeSlider morningVolSlider;
 
-	private float scaleNorm;
-	private float nightVolNorm;
-	private float morningVolNorm;
+	float scaleNorm;
+	float nightVolNorm;
+	float morningVolNorm;
 
-	private boolean dirty = false;
+	boolean dirty = false;
 
 	public NightNotifierConfigScreen(Screen parent) {
 		super(Text.literal("Night Notifier Settings"));
@@ -169,7 +169,16 @@ public class NightNotifierConfigScreen extends Screen {
 		}));
 		yLeft += 24;
 
-		colorField = strField(right, yRight, w, cfg.colorHex, "Color", this::liveApplyTextFields); yRight += 24;
+		colorField = strField(right, yRight, w, cfg.colorHex, "Color", this::liveApplyTextFields);
+		// picker button
+		addDrawableChild(ButtonWidget.builder(Text.literal("P"), b -> {
+			MinecraftClient.getInstance().setScreen(ColorPickerScreen.open(this, colorField.getText(), picked -> {
+				colorField.setText(picked);
+				liveApplyTextFields();
+			}));
+		}).dimensions(right + w + 4, yRight, 22, 20).tooltip(Tooltip.of(Text.literal("Pick a color"))).build());
+		yRight += 24;
+
 		anchorField = strField(right, yRight, w, cfg.anchor, "Anchor", this::liveApplyTextFields); yRight += 24;
 		alignField  = strField(right, yRight, w, cfg.textAlign, "Align", this::liveApplyTextFields); yRight += 24;
 		offsetCombinedField = strField(right, yRight, w, cfg.offsetX + "," + cfg.offsetY, "Message Offset", this::liveApplyTextFields); yRight += 24;
@@ -193,7 +202,7 @@ public class NightNotifierConfigScreen extends Screen {
 		}).dimensions(this.width / 2 + 20, this.height - 35, 150, 20).build());
 	}
 
-	private TextFieldWidget strField(int x, int y, int w, String value, String label, Runnable onChange) {
+	TextFieldWidget strField(int x, int y, int w, String value, String label, Runnable onChange) {
 		TextFieldWidget f = new TextFieldWidget(textRenderer, x, y, w, 20, Text.literal(label));
 		f.setText(value);
 		f.setChangedListener(s -> { dirty = true; onChange.run(); });
@@ -201,7 +210,7 @@ public class NightNotifierConfigScreen extends Screen {
 		return f;
 	}
 
-	private ButtonWidget resetButton(int x, int y, Runnable action) {
+	ButtonWidget resetButton(int x, int y, Runnable action) {
 		return ButtonWidget.builder(Text.literal("R"), b -> action.run())
 				.dimensions(x, y, 22, 20)
 				.tooltip(Tooltip.of(Text.literal("Reset to default")))
@@ -238,7 +247,7 @@ public class NightNotifierConfigScreen extends Screen {
 		liveApplyAll();
 	}
 
-	private void liveApplyToggles() {
+	void liveApplyToggles() {
 		cfg.enableNotifications = notificationsEnabled;
 		cfg.useClientStyle = styleEnabled;
 		cfg.enablePhantomScreams = phantomEnabled;
@@ -249,7 +258,7 @@ public class NightNotifierConfigScreen extends Screen {
 		NightNotifierClient.applyClientConfig(cfg);
 	}
 
-	private void liveApplySliders() {
+	void liveApplySliders() {
 		cfg.textScale = denormalizeScale(scaleNorm);
 		cfg.textScale = clampScale(cfg.textScale);
 		cfg.nightScreamVolume = denormalizeVolume(nightVolNorm);
@@ -258,7 +267,7 @@ public class NightNotifierConfigScreen extends Screen {
 		NightNotifierClient.applyClientConfig(cfg);
 	}
 
-	private void liveApplyTextFields() {
+	void liveApplyTextFields() {
 		cfg.colorHex = safeColor(colorField.getText(), cfg.colorHex);
 		cfg.anchor = anchorField.getText().trim().toUpperCase();
 		cfg.textAlign = alignField.getText().trim().toUpperCase();
@@ -273,7 +282,7 @@ public class NightNotifierConfigScreen extends Screen {
 		NightNotifierClient.applyClientConfig(cfg);
 	}
 
-	private void liveApplyAll() {
+	void liveApplyAll() {
 		liveApplyToggles();
 		liveApplySliders();
 		liveApplyTextFields();
@@ -301,7 +310,7 @@ public class NightNotifierConfigScreen extends Screen {
 		try { return Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return fallback; }
 	}
 
-	private String safeColor(String in, String fallback) {
+	String safeColor(String in, String fallback) {
 		if (in == null) return fallback;
 		String s = in.trim().toUpperCase();
 		if (!s.startsWith("#")) return fallback;
