@@ -16,9 +16,50 @@ public final class IconRender {
     private static final Identifier SUN_TEX  = Identifier.of("minecraft", "textures/environment/sun.png");
     private static final Identifier MOON_TEX = Identifier.of("minecraft", "textures/environment/moon_phases.png");
 
+    // Simple animation state used by ProgressBarRenderer (kept minimal and deterministic)
+    private static boolean showSun = false;
+    private static boolean showMoon = false;
+    private static int ticksRemaining = 0;
+    private static float alpha = 1.0f;
+    private static boolean pulseDown = true;
+
+    /**
+     * Called by the progress-bar integration to enable/disable icons and set a simple
+     * animation duration (in ticks). This mirrors the previous small API so callers compile.
+     */
+    public static void set(boolean sun, boolean moon, int durationTicks) {
+        showSun = sun;
+        showMoon = moon;
+        ticksRemaining = Math.max(0, durationTicks);
+        alpha = 1.0f;
+        pulseDown = true;
+    }
+
+    /**
+     * Tick the simple animation state. Call each frame from the progress bar renderer.
+     */
+    public static void tick() {
+        if (ticksRemaining > 0) ticksRemaining--;
+        if (ticksRemaining > 0) {
+            if (pulseDown) {
+                alpha -= 0.02f;
+                if (alpha <= 0.6f) pulseDown = false;
+            } else {
+                alpha += 0.02f;
+                if (alpha >= 1.0f) pulseDown = true;
+            }
+            alpha = Math.max(0f, Math.min(1f, alpha));
+        } else {
+            showSun = false;
+            showMoon = false;
+            alpha = 1.0f;
+            pulseDown = true;
+        }
+    }
+
     // Render the vanilla sun by sampling the 16x16 sun disc centered inside the 32x32 sun atlas.
     public static void renderSun(DrawContext ctx, ClientDisplayConfig cfg, int x, int y, int size) {
-        final int texW = 32;     // full sun.png atlas width (you reported 32×32)
+        final int texW = 32;     // full sun.png atlas width (you reported 32x32)
         final int texH = 32;     // full sun.png atlas height
         final int region = 16;   // actual sun disc region size
         final int srcX = (texW - region) / 2; // center -> (8)
