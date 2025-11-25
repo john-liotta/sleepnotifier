@@ -33,8 +33,6 @@ public class NightNotifierConfigScreen extends Screen {
 	private boolean endEnabled;
 
 	private TextFieldWidget colorField;
-	private TextFieldWidget anchorField;
-	private TextFieldWidget alignField;
 	private TextFieldWidget offsetCombinedField;
 	private TextFieldWidget durationSecondsField;
 	private TextFieldWidget leadSecondsField;
@@ -193,8 +191,6 @@ public class NightNotifierConfigScreen extends Screen {
 		yLeft += 24;
 
 		colorField = strField(right, yRight, w, cfg.colorHex, "Color", this::liveApplyTextFields); yRight += 24;
-		anchorField = strField(right, yRight, w, cfg.anchor, "Anchor", this::liveApplyTextFields); yRight += 24;
-		alignField  = strField(right, yRight, w, cfg.textAlign, "Align", this::liveApplyTextFields); yRight += 24;
 		offsetCombinedField = strField(right, yRight, w, cfg.offsetX + "," + cfg.offsetY, "Message Offset", this::liveApplyTextFields); yRight += 24;
 
 		int notifSeconds = cfg.defaultDuration <= 0 ? cfg.defaultDuration : cfg.defaultDuration / 20;
@@ -242,8 +238,6 @@ public class NightNotifierConfigScreen extends Screen {
 		morningVolNorm = normalizeVolume(defaults.morningScreamVolume);
 
 		colorField.setText(defaults.colorHex);
-		anchorField.setText(defaults.anchor);
-		alignField.setText(defaults.textAlign);
 		offsetCombinedField.setText(defaults.offsetX + "," + defaults.offsetY);
 		durationSecondsField.setText(String.valueOf(defaults.defaultDuration / 20));
 		leadSecondsField.setText(String.valueOf(defaults.morningWarningLeadTicks / 20));
@@ -283,8 +277,9 @@ public class NightNotifierConfigScreen extends Screen {
 
 	private void liveApplyTextFields() {
 		cfg.colorHex = safeColor(colorField.getText(), cfg.colorHex);
-		cfg.anchor = anchorField.getText().trim().toUpperCase();
-		cfg.textAlign = alignField.getText().trim().toUpperCase();
+		// cfg.anchor = anchorField.getText().trim().toUpperCase();
+		// force left alignment internally
+		cfg.textAlign = "LEFT";
 		int[] xy = parseOffset(offsetCombinedField.getText(), cfg.offsetX, cfg.offsetY);
 		cfg.offsetX = xy[0];
 		cfg.offsetY = xy[1];
