@@ -40,7 +40,7 @@ public final class IconRender {
         renderSun(ctx, cfg, x, y, size);
     }
 
-    // Render the moon frame at native 16x16 size from the 128x16 moon sheet.
+    // Render the moon frame at native 16x16 size from the 128x64 moon sheet.
     public static void renderMoon(DrawContext ctx, ClientDisplayConfig cfg, int x, int y, int size) {
         int phase = 0;
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -50,15 +50,24 @@ public final class IconRender {
             } catch (Throwable ignored) {}
         }
 
-        int srcX = (phase % 8) * 16;
+        // sheet is 128x64, first frame starts at (8,8), frames 16x16 separated by 16 horizontally
+        final int frameW = 16;
+        final int frameH = 16;
+        final int atlasW = 128;
+        final int atlasH = 64;
+        final int startX = 8;
+        final int startY = 8;
+
+        int srcX = startX + (phase % 8) * 16;
+        int srcY = startY;
 
         ctx.drawTexture(
                 RenderPipelines.GUI_TEXTURED,
                 MOON_TEX,
                 x, y,
-                (float) srcX, 0f,
-                16, 16,
-                128, 16
+                (float) srcX, (float) srcY,
+                frameW, frameH,
+                atlasW, atlasH
         );
     }
 }
