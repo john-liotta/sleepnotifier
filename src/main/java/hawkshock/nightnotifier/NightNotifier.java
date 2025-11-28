@@ -22,6 +22,7 @@ import net.minecraft.world.World;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -51,6 +52,35 @@ public class NightNotifier implements ModInitializer {
     @Override
     public void onInitialize() {
         LOGGER.info("[NightNotifier] Server init start");
+
+        // Attempt to initialize MidnightLib config screen without introducing a compile-time
+        // dependency on a client-only config class. This uses reflection and is safe on dedicated servers.
+        try {
+            Class<?> midnightConfigClass = Class.forName("eu.midnightdust.lib.config.MidnightConfig");
+            // find init(String, Class) or init(String, Class<?>) method
+            Method initMethod = null;
+            for (Method m : midnightConfigClass.getMethods()) {
+                if ("init".equals(m.getName()) && m.getParameterCount() == 2
+                        && m.getParameterTypes()[0] == String.class) {
+                    initMethod = m;
+                    break;
+                }
+            }
+            if (initMethod != null) {
+                // Attempt to load the client config class; if unavailable this will throw and be ignored.
+                try {
+                    Class<?> cfgClass = Class.forName("hawkshock.nightnotifier.client.config.MidnightClientConfig");
+                    initMethod.invoke(null, MOD_ID, cfgClass);
+                    LOGGER.debug("[NightNotifier] MidnightLib config initialized via reflection");
+                } catch (Throwable t) {
+                    // If client class not present (dedicated server) or invocation fails, ignore.
+                    LOGGER.debug("[NightNotifier] MidnightLib client config not initialized (client-only): {}", t.toString());
+                }
+            }
+        } catch (Throwable t) {
+            LOGGER.debug("[NightNotifier] MidnightLib init skipped or MidnightLib not present: {}", t.toString());
+        }
+
         ensureConfig();
         resolvePhantomSounds();
         OverlayMessagePayload.registerTypeSafely();
